@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(py --version)",
+      "Bash(pip --version)",
+      "Bash(py -0p)",
+      "Bash(py -3.13 -m venv .venv)",
+      "Bash(npx -y skills add https://github.com/wshobson/agents --skill fastapi-templates)",
+      "Bash(.venv/Scripts/python.exe -c \"import inspect; from langchain.agents import create_agent; print\\(inspect.signature\\(create_agent\\)\\)\")"
+    ]
+  }
+}
