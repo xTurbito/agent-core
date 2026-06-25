@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>agent-core — arquitectura</title>
+<style>
+  :root{
+    --bg:#f4f7fc; --card:#ffffff; --card2:#f0f4fb;
+    --core:#0284c7; --app:#d97706; --flow:#059669;
+    --txt:#0f1f3d; --muted:#5e6b85; --line:#e0e7f3;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Roboto,system-ui,sans-serif}
+  body{background:#e8eef7;display:flex;justify-content:center;padding:40px}
+  .poster{width:1080px;background:radial-gradient(120% 120% at 50% 0%,#ffffff 0%,var(--bg) 60%);
+    border:1px solid var(--line);border-radius:28px;padding:56px 56px 48px;color:var(--txt);
+    box-shadow:0 24px 60px rgba(20,40,80,.12)}
+  .head{text-align:center;margin-bottom:44px}
+  .badge{display:inline-block;font-size:13px;letter-spacing:3px;color:var(--muted);
+    text-transform:uppercase;margin-bottom:14px}
+  h1{font-size:52px;font-weight:800;letter-spacing:-1px}
+  h1 span{color:var(--core)}
+  .sub{color:var(--muted);font-size:19px;margin-top:12px}
+
+  /* flow */
+  .flow{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;
+    background:var(--card);border:1px solid var(--line);border-radius:20px;padding:26px 20px;margin-bottom:34px}
+  .node{background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:14px 18px;
+    text-align:center;min-width:104px}
+  .node .ic{font-size:24px}
+  .node .lb{font-size:14px;font-weight:600;margin-top:6px}
+  .node .sm{font-size:11px;color:var(--muted)}
+  .arrow{color:var(--flow);font-size:24px;font-weight:800}
+  .brain{background:linear-gradient(135deg,#e0f0fb,#dbe7fb);border:1px solid #9ec5e8}
+
+  /* columns */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:30px}
+  .col{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:26px}
+  .col h2{font-size:15px;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px}
+  .col.core h2{color:var(--core)} .col.app h2{color:var(--app)}
+  .col .tag{font-size:13px;color:var(--muted);margin-bottom:18px}
+  .row{display:flex;gap:12px;padding:11px 0;border-top:1px solid var(--line)}
+  .row:first-of-type{border-top:none}
+  .fn{font-family:'Consolas',monospace;font-size:14px;color:var(--txt);min-width:128px;font-weight:600}
+  .ds{font-size:13px;color:var(--muted)}
+
+  .ftr{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+  .dep{font-family:Consolas,monospace;font-size:15px;color:var(--muted)}
+  .dep b{color:var(--flow)}
+  .stack{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{font-size:12px;color:var(--muted);border:1px solid var(--line);
+    border-radius:999px;padding:6px 12px;background:var(--card)}
+</style>
+</head>
+<body>
+  <div class="poster">
+    <div class="head">
+      <div class="badge">ai engineering</div>
+      <h1>agent<span>-core</span></h1>
+      <div class="sub">Base reutilizable para construir agentes de IA · un core, muchos forks</div>
+    </div>
+
+    <div class="flow">
+      <div class="node"><div class="ic">💬</div><div class="lb">WhatsApp</div><div class="sm">/ web / canal</div></div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="ic">🌐</div><div class="lb">FastAPI</div><div class="sm">POST /chat</div></div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="ic">🎛️</div><div class="lb">Runner</div><div class="sm">responder()</div></div>
+      <div class="arrow">→</div>
+      <div class="node brain"><div class="ic">🧠</div><div class="lb">Agente</div><div class="sm">LLM · Tools · Memoria</div></div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="ic">✅</div><div class="lb">Respuesta</div><div class="sm">con contexto</div></div>
+    </div>
+
+    <div class="cols">
+      <div class="col core">
+        <h2>core/</h2>
+        <div class="tag">genérico · estable · no se toca en el fork</div>
+        <div class="row"><div class="fn">llm.py</div><div class="ds">factory multi-proveedor (Google · Anthropic · OpenAI)</div></div>
+        <div class="row"><div class="fn">agent.py</div><div class="ds">arma el agente (LangGraph)</div></div>
+        <div class="row"><div class="fn">memory.py</div><div class="ds">memoria por conversación (thread_id)</div></div>
+        <div class="row"><div class="fn">runner.py</div><div class="ds">interfaz simple responder()</div></div>
+        <div class="row"><div class="fn">settings.py</div><div class="ds">config desde .env</div></div>
+        <div class="row"><div class="fn">api.py</div><div class="ds">webhook FastAPI</div></div>
+      </div>
+      <div class="col app">
+        <h2>app/</h2>
+        <div class="tag">específico del cliente · lo que cambia por fork</div>
+        <div class="row"><div class="fn">bootstrap.py</div><div class="ds">arma el runner: settings + tools + prompt</div></div>
+        <div class="row"><div class="fn">tools/</div><div class="ds">tools del negocio (disponibilidad, agendar…)</div></div>
+        <div class="row"><div class="fn">prompts/</div><div class="ds">personalidad y reglas del bot</div></div>
+        <div class="row"><div class="fn">.env</div><div class="ds">keys y config del cliente</div></div>
+        <div class="row"><div class="fn" style="color:var(--app)">fork =</div><div class="ds">cambias app/ + .env, el core queda igual</div></div>
+        <div class="row"><div class="fn" style="color:var(--app)">upstream</div><div class="ds">mejoras del core → git pull a todos</div></div>
+      </div>
+    </div>
+
+    <div class="ftr">
+      <div class="dep">main &nbsp;<b>→</b>&nbsp; app &nbsp;<b>→</b>&nbsp; core &nbsp;&nbsp;<span style="color:#5b6885">(el core nunca importa hacia arriba)</span></div>
+      <div class="stack">
+        <span class="chip">Python</span><span class="chip">LangChain</span>
+        <span class="chip">LangGraph</span><span class="chip">FastAPI</span><span class="chip">Pydantic</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
