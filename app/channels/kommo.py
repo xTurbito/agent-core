@@ -1,11 +1,13 @@
 import json
+import secrets
+from collections import OrderedDict
 from pathlib import Path
 from time import perf_counter
 from typing import Any
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
 
 from app.business.kommo_rules import (
@@ -39,6 +41,9 @@ from core.settings import settings
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 pending_ai_responses: dict[str, str] = {}
+
+_seen_message_ids: OrderedDict[str, None] = OrderedDict()
+_SEEN_MESSAGE_IDS_MAX = 2000
 
 
 def ensure_kommo_profiles(event: dict[str, Any], session_id: str) -> None:
@@ -87,6 +92,35 @@ def ensure_kommo_profiles(event: dict[str, Any], session_id: str) -> None:
         )
 
 
+def _verify_kommo_secret(request: Request) -> None:
+    """Exige ?secret=<KOMMO_WEBHOOK_SECRET> en la URL del webhook.
+
+    Fail-closed: si KOMMO_WEBHOOK_SECRET no esta configurado, se rechaza
+    todo en vez de dejar el endpoint abierto por descuido.
+    """
+    if not settings.kommo_webhook_secret:
+        raise HTTPException(status_code=503, detail="KOMMO_WEBHOOK_SECRET no configurado")
+
+    secret = request.query_params.get("secret")
+    if not secret or not secrets.compare_digest(secret, settings.kommo_webhook_secret):
+        raise HTTPException(status_code=401, detail="No autorizado")
+
+
+def _is_duplicate_message(message_id: str | None) -> bool:
+    """Detecta reintentos del mismo webhook (cache acotado, no crece sin limite)."""
+    if not message_id:
+        return False
+
+    if message_id in _seen_message_ids:
+        return True
+
+    _seen_message_ids[message_id] = None
+    if len(_seen_message_ids) > _SEEN_MESSAGE_IDS_MAX:
+        _seen_message_ids.popitem(last=False)
+
+    return False
+
+
 def update_kommo_profile_signals(
     text: str, event: dict[str, Any], session_id: str, runner: AgentRunner
 ) -> None:
@@ -126,10 +160,18 @@ def create_kommo_router(runner: AgentRunner) -> APIRouter:
 
     @router.post("/incoming-message")
     async def incoming_message(request: Request) -> dict[str, Any]:
+        _verify_kommo_secret(request)
+
         content_type = request.headers.get("content-type", "")
         payload = await read_payload(request)
 
         event = parse_incoming_message(payload)
+
+        if _is_duplicate_message(event.get("message_id")):
+            return {"status": "ignored", "reason": "duplicate message_id"}
+        
+        if len(event["text"]) > settings.max_message_length:
+            return {"status": "ignored", "reason": "message too long"}
 
         print("KOMMO INCOMING MESSAGE:")
         print("content-type:", content_type)
@@ -270,6 +312,8 @@ def create_kommo_router(runner: AgentRunner) -> APIRouter:
 
     @router.post("/widget-request")
     async def widget_request(request: Request) -> dict[str, Any]:
+        _verify_kommo_secret(request)
+
         content_type = request.headers.get("content-type", "")
         payload = await read_payload(request)
 
@@ -294,6 +338,9 @@ def create_kommo_router(runner: AgentRunner) -> APIRouter:
             "return_url",
             "data[return_url]",
         )
+
+        if message and len(str(message)) > settings.max_message_length:
+            return {"status": "ignored", "reason": "message too long"}
 
         if not lead_id:
             lead_id = "unknown"

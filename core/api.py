@@ -4,19 +4,35 @@ Recibe {session_id, mensaje}, devuelve la respuesta del agente.
 Generico: RECIBE el runner ya armado. No sabe de tools ni negocio.
 """
 
+import secrets
 from collections.abc import Callable
 from time import perf_counter
 from typing import Any
 
-from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi import Depends, FastAPI, Header, HTTPException
+from pydantic import BaseModel, Field
 
 from core.runner import AgentRunner
+from core.settings import settings
+
+
+def require_chat_api_key(authorization: str | None = Header(default=None)) -> None:
+    """Exige 'Authorization: Bearer <CHAT_API_KEY>' en /chat.
+
+    Fail-closed a proposito: si CHAT_API_KEY no esta configurada, se
+    rechaza todo en vez de dejar el endpoint abierto por descuido.
+    """
+    if not settings.chat_api_key:
+        raise HTTPException(status_code=503, detail="CHAT_API_KEY no configurada")
+
+    expected = f"Bearer {settings.chat_api_key}"
+    if not authorization or not secrets.compare_digest(authorization, expected):
+        raise HTTPException(status_code=401, detail="No autorizado")
 
 
 class ChatRequest(BaseModel):
     session_id: str
-    mensaje: str
+    mensaje: str = Field(max_length=settings.max_message_length)
 
 
 class ChatResponse(BaseModel):
@@ -38,7 +54,7 @@ def create_app(
     def health():
         return {"status": "ok"}
 
-    @app.post("/chat", response_model=ChatResponse)
+    @app.post("/chat", response_model=ChatResponse, dependencies=[Depends(require_chat_api_key)])
     def chat(req: ChatRequest) -> ChatResponse:
         started_at = perf_counter()
 

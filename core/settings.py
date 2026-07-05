@@ -25,6 +25,11 @@ class Settings(BaseSettings):
 
     handoff_policy: str = "default"
 
+    # seguridad de endpoints
+    chat_api_key: str | None = None
+    kommo_webhook_secret: str | None = None
+    max_message_length: int = 4000
+
     @property
     def active_llm_api_key(self) -> str | None:
         api_keys = {
