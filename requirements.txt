@@ -9,3 +9,6 @@ python-dotenv
 pydantic-settings
 httpx
 pyyaml
+python-multipart
+langgraph-checkpoint-postgres
+psycopg[binary,pool]

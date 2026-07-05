@@ -1,0 +1,14 @@
+{
+  "widget": {
+    "name": "AI Bridge",
+    "description": "Conecta Salesbot con un agente IA externo",
+    "short_description": "Puente para IA"
+  },
+  "settings": {
+    "custom": "Configuracion"
+  },
+  "salesbot": {
+    "ai_request": "Enviar a agente IA",
+    "url": "URL del webhook"
+  }
+}

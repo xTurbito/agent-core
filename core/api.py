@@ -4,6 +4,10 @@ Recibe {session_id, mensaje}, devuelve la respuesta del agente.
 Generico: RECIBE el runner ya armado. No sabe de tools ni negocio.
 """
 
+from collections.abc import Callable
+from time import perf_counter
+from typing import Any
+
 from fastapi import FastAPI
 from pydantic import BaseModel
 
@@ -19,7 +23,15 @@ class ChatResponse(BaseModel):
     respuesta: str
 
 
-def create_app(runner: AgentRunner) -> FastAPI:
+ErrorHandler = Callable[[Exception, dict[str, Any]], None]
+UsageLogger = Callable[[dict[str, Any]], None]
+
+
+def create_app(
+    runner: AgentRunner,
+    on_error: ErrorHandler | None = None,
+    log_usage: UsageLogger | None = None,
+) -> FastAPI:
     app = FastAPI(title="Chatbot Core")
 
     @app.get("/health")
@@ -28,7 +40,55 @@ def create_app(runner: AgentRunner) -> FastAPI:
 
     @app.post("/chat", response_model=ChatResponse)
     def chat(req: ChatRequest) -> ChatResponse:
-        respuesta = runner.responder(req.session_id, req.mensaje)
+        started_at = perf_counter()
+
+        try:
+            result = runner.responder_con_metadata(req.session_id, req.mensaje)
+            respuesta = result["text"]
+        except Exception as exc:
+            latency_ms = round((perf_counter() - started_at) * 1000)
+
+            if on_error:
+                on_error(
+                    exc,
+                    {
+                        "source": "chat",
+                        "session_id": req.session_id,
+                    },
+                )
+
+            if log_usage:
+                log_usage(
+                    {
+                        "source": "chat",
+                        "session_id": req.session_id,
+                        "status": "error",
+                        "reason": "agent failed",
+                        "message_length": len(req.mensaje),
+                        "latency_ms": latency_ms,
+                    }
+                )
+
+            respuesta = (
+                "Ahora no puedo revisar esa información. Un asesor te apoyará en breve."
+            )
+        else:
+            latency_ms = round((perf_counter() - started_at) * 1000)
+
+            if log_usage:
+                log_usage(
+                    {
+                        "source": "chat",
+                        "session_id": req.session_id,
+                        "status": "ok",
+                        "message_length": len(req.mensaje),
+                        "response_length": len(respuesta),
+                        "latency_ms": latency_ms,
+                        "usage_metadata": result["usage_metadata"],
+                        "response_metadata": result["response_metadata"],
+                    }
+                )
+
         return ChatResponse(respuesta=respuesta)
 
     return app

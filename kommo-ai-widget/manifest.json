@@ -1,0 +1,38 @@
+{
+  "widget": {
+    "name": "widget.name",
+    "description": "widget.description",
+    "short_description": "widget.short_description",
+    "version": "1.0.0",
+    "interface_version": 2,
+    "init_once": true,
+    "installation": true,
+    "locale": ["es"],
+    "support": {
+      "link": "https://example.com",
+      "email": "soporte@example.com"
+    }
+  },
+  "locations": ["settings", "salesbot_designer"],
+  "settings": {
+    "custom": {
+      "name": "settings.custom",
+      "type": "custom",
+      "required": false
+    }
+  },
+  "salesbot_designer": {
+    "logo": "/widgets/ai_bridge/images/logo.png",
+    "ai_request": {
+      "name": "salesbot.ai_request",
+      "settings": {
+        "url": {
+          "name": "salesbot.url",
+          "default_value": "https://education-aerobics-bobbing.ngrok-free.dev/kommo/widget-request",
+          "type": "url",
+          "manual": true
+        }
+      }
+    }
+  }
+}
