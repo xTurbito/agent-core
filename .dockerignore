@@ -1,0 +1,31 @@
+# No mandar al contexto de build lo que no corre en produccion.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Secretos: las env vars van en el panel de Dokploy, nunca en la imagen.
+.env
+.env.*
+!.env.example
+
+# Logs locales
+logs/
+
+# Cosas de desarrollo que no necesita el runtime
+.git/
+.gitignore
+tests/
+docs/
+scripts/smoke/
+kommo-ai-widget/
+kommo-ai-widget-flat.zip
+.agents/
+.claude/
+.atl/
+*.md
+!README.md
