@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     kommo_webhook_secret: str | None = None
     max_message_length: int = 4000
 
+    # Zona horaria del negocio. La usa la normalizacion de fechas relativas
+    # ("mañana", "el sabado"): sin ella el servidor resolveria contra UTC y
+    # despues de las 18:00 local ya estaria contestando con el dia siguiente.
+    business_timezone: str = "America/Mexico_City"
+
     @property
     def active_llm_api_key(self) -> str | None:
         api_keys = {
@@ -38,6 +43,20 @@ class Settings(BaseSettings):
             "openai": self.openai_api_key,
         }
         return api_keys.get(self.llm_provider)
+
+    def require_llm_api_key(self) -> str:
+        """Fail-fast al arrancar: mejor tronar aqui que a medio request.
+
+        Se llama desde el bootstrap del servidor, no al importar, para que
+        los tests puros (sin .env) sigan corriendo.
+        """
+        key = self.active_llm_api_key
+        if not key:
+            raise RuntimeError(
+                f"Falta la API key para el provider '{self.llm_provider}'. "
+                "Revisa el .env (GOOGLE_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY)."
+            )
+        return key
 
 
 settings = Settings()

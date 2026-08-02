@@ -20,7 +20,7 @@ def build_runner() -> AgentRunner:
     llm = make_llm(
         settings.llm_provider,
         settings.llm_model,
-        api_key=settings.active_llm_api_key,
+        api_key=settings.require_llm_api_key(),
     )
     checkpointer = make_checkpointer(settings.memory_kind)
     agent = build_agent(
