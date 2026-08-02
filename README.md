@@ -76,16 +76,26 @@ curl -s -X POST http://127.0.0.1:8000/chat \
 
 ## Tests
 
+Viven en `tests/` y se corren como modulo desde la raiz del repo:
+
 ```bash
-.venv/bin/python test_qualification.py       # scoring y politicas de handoff
-.venv/bin/python test_signal_detection.py    # regex de senales
-.venv/bin/python test_safety_prompt.py       # safety prompt siempre presente
-.venv/bin/python test_context_middleware.py  # inyeccion de contexto
+.venv/bin/python -m tests.test_qualification        # scoring y politicas de handoff
+.venv/bin/python -m tests.test_signal_detection     # regex de senales
+.venv/bin/python -m tests.test_safety_prompt        # safety prompt siempre presente
+.venv/bin/python -m tests.test_context_middleware   # inyeccion de contexto
+.venv/bin/python -m tests.test_settings             # fail-fast sin API key
+.venv/bin/python -m tests.test_llm_timeout          # timeout por default
+.venv/bin/python -m tests.test_empty_response_retry # vacio de Gemini no se persiste
+.venv/bin/python -m tests.test_tool_claim_guard     # no afirmar sin tool que respalde
+.venv/bin/python -m tests.test_kommo_client         # limites y adaptacion de Kommo
+.venv/bin/python -m tests.test_abuse_detection      # insultos/jailbreak/ruido
+.venv/bin/python -m tests.test_agrupado_mensajes    # mensajes seguidos en un turno
+.venv/bin/python -m tests.test_date_normalization   # fechas relativas
 ```
 
 Corren sin red y sin BD. Correlos antes de commitear cambios a `core/` o
-`app/business/`. (Los `test_llm/agent/memory/runner.py` son scripts de humo
-manuales: llaman al LLM real y cuestan tokens.)
+`app/business/`. Los scripts de `scripts/smoke/` son de humo manual: llaman al
+LLM y BD reales y cuestan tokens.
 
 ## Crear un fork por cliente
 
@@ -120,7 +130,7 @@ campo "IA pausada" en Kommo es el boton de apagado por lead individual.
 ```bash
 git fetch core-upstream
 git checkout core-upstream/main -- core/
-.venv/bin/python test_safety_prompt.py && .venv/bin/python test_context_middleware.py
+.venv/bin/python -m tests.test_safety_prompt && .venv/bin/python -m tests.test_context_middleware
 git commit -m "Sync core/ desde agent-core"
 ```
 

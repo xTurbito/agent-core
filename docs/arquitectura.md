@@ -47,10 +47,12 @@ limpia, nunca merge.
 Factory de chat models (google / anthropic / openai) con la misma interfaz
 LangChain. **Por que existe:** cambiar de proveedor de LLM debe ser un cambio
 de `.env`, no de codigo. Los imports van adentro de cada rama para no cargar
-SDKs que el fork no usa.
+SDKs que el fork no usa. Fija `timeout=30s` por default: **sin timeout una
+llamada colgada al proveedor cuelga el lock por-sesion de `AgentRunner` para
+siempre** (visto en pruebas de carga con 8 sesiones concurrentes).
 
 ### core/agent.py
-Arma el agente (LangGraph `create_agent`) y contiene dos piezas de seguridad:
+Arma el agente (LangGraph `create_agent`) y contiene tres piezas de seguridad:
 
 - **`BASE_SAFETY_PROMPT`**: reglas anti prompt-injection, no revelar datos
   internos del CRM (scores, etiquetas hot/warm/cold, motivos de escalamiento) y
@@ -67,6 +69,32 @@ Arma el agente (LangGraph `create_agent`) y contiene dos piezas de seguridad:
   cada turno se recalcula fresco desde Postgres. El `session_id` sale de
   `get_config()["configurable"]["thread_id"]` (LangGraph lo propaga por
   contextvar durante el invoke).
+- **`EmptyResponseRetryMiddleware`**: reintenta cuando el modelo regresa un
+  mensaje sin texto ni tool_calls. **Por que:** Gemini a veces contesta vacio
+  (finish STOP, 0 tokens); si ese vacio se persiste en el checkpoint la sesion
+  queda MUDA, porque los turnos siguientes imitan el patron vacio del
+  historial. Por eso el reintento va antes de persistir, con un empujon en el
+  system prompt para romper el determinismo del caso que fallo.
+
+`build_agent` acepta ademas `extra_middleware`: ahi cada fork engancha sus
+guardianes de dominio sin que core sepa de ellos.
+
+### core/guards.py
+**`ToolClaimGuardMiddleware`**: lee el borrador ANTES de que salga y, si afirma
+como hecho consumado algo que solo una tool sabe sin que esa tool haya
+respondido con exito en ESTE turno, reintenta la generacion con una correccion
+inyectada. **Por que existe:** el system prompt es probabilistico. Por mas
+explicita que sea la regla, el modelo afirmo citas inexistentes y horarios que
+nunca consulto — dos veces en pruebas reales, con la regla escrita. Un
+guardian no depende de que el LLM obedezca.
+
+Se parametriza con `claim_detector` (¿el texto AFIRMA el hecho?), `tool_name`,
+`success_marker` (la tool tuvo que responder BIEN: un error no respalda nada) y
+`nudge`. El detector debe distinguir afirmacion de invitacion ("tu cita quedo
+agendada" si, "¿te gustaria agendar?" no) o el guardian reintenta de mas y
+encarece cada turno. La busqueda del respaldo se corta en el ultimo mensaje del
+usuario a proposito: una consulta exitosa de hace tres turnos no respalda lo
+que el agente afirma hoy.
 
 ### core/memory.py
 Factory del checkpointer (historial de conversacion por `thread_id`).
@@ -174,6 +202,19 @@ La logica comercial, Python puro (testeable sin LLM ni BD):
 - **kommo_rules.py** — reglas de gating del canal: whitelist de leads
   (`KOMMO_ALLOWED_LEAD_IDS`, el mecanismo de piloto/canary) y el campo "IA
   pausada" (el boton de apagado por lead).
+- **abuse_detection.py** — defensa barata (sin LLM) contra insultos directos,
+  jailbreak/prompt injection y puro ruido. **Por que sin LLM:** no tiene
+  sentido pagar tokens por contestarle a alguien que solo quiere romper el
+  flujo. No es moderacion de contenido general.
+- **agrupado_mensajes.py** — junta mensajes seguidos del mismo lead en un solo
+  turno. **Por que:** en WhatsApp la gente escribe entrecortado, y cada mensaje
+  disparaba su propia generacion: dos respuestas casi identicas al lead y dos
+  llamadas al LLM pagadas por la misma pregunta. El estado vive en memoria del
+  proceso, igual que el dedup — otra razon del worker unico.
+- **date_normalization.py** — resuelve "mañana", "el sabado que viene",
+  "proximo martes" a una fecha ISO, en Python puro contra
+  `BUSINESS_TIMEZONE`. **Por que en codigo y no en el prompt:** el LLM no sabe
+  que dia es hoy y calcula mal; en el prompt seria una apuesta.
 
 ### app/channels/kommo.py
 El canal Kommo completo (webhook de mensajes + widget request del Salesbot).
@@ -201,9 +242,29 @@ Parseo del payload form-encoded de Kommo (claves tipo `message[add][0][text]`).
 Separado del canal para poder testearlo sin FastAPI.
 
 ### app/integrations/kommo_client.py
-Cliente HTTP de la API de Kommo: leer lead, disparar/continuar Salesbot.
-Solo LECTURA + salesbot hoy; la escritura (campos, tags, etapas, notas) es la
-pieza que cierra el handoff end-to-end (pendiente, por fork).
+Cliente HTTP de la API de Kommo: leer lead y contacto, disparar/continuar
+Salesbot, escribir custom fields, mover de etapa, cerrar como Lost, y buscar/
+vincular contactos. Los **ids de la cuenta** (loss reasons, etapas intermedias
+del pipeline, ids de custom fields) NO viven aqui: son de cada cuenta y van en
+el fork. Solo se quedan `KOMMO_LOST_STATUS_ID` y `KOMMO_WIN_STATUS_ID`, que
+Kommo reserva igual en todas las pipelines.
+
+La parte no obvia es la adaptacion de la salida, y nos costo un 400 en
+produccion con el lead sin recibir NADA:
+
+- **Dos limites, no uno.** Cada handler `show` acepta 80 caracteres Y la
+  coleccion completa acepta maximo 10 handlers (~800 chars por respuesta).
+  Como se trocea linea por linea, una lista con una opcion por renglon gasta
+  un handler por renglon y revienta el segundo limite con texto corto.
+  `build_show_handlers` compacta renglones cuando no caben.
+- **No se recorta el texto.** Si ni compactado cabe, truena a proposito:
+  pasarse de 800 significa que el prompt dejo al agente soltar una parrafada, y
+  eso se arregla en el prompt (o reintentando comprimido, del lado del fork).
+  Recortando se taparia el bug y el lead leeria media respuesta.
+- **Emojis.** Algunos emojis modernos llegan a WhatsApp como `?`;
+  `adapt_text_for_kommo` los cambia por equivalentes seguros y quita lo que
+  queda fuera del BMP. Tambien colapsa `**negritas**` de markdown a `*`, que es
+  lo que WhatsApp si renderiza.
 
 ### app/usage.py y app/notifications.py
 Telemetria y errores. `log_usage` escribe a `logs/usage.jsonl` Y a la tabla
@@ -221,7 +282,10 @@ el hook ya esta inyectado donde debe, solo falta conectarle un canal real.
   nunca editar una aplicada.
 - `setup_postgres_memory.py` — crea las tablas del checkpointer de LangGraph.
 
-## Tests (scripts planos, sin pytest: `.venv/bin/python test_X.py`)
+## Tests (scripts planos, sin pytest: `.venv/bin/python -m tests.test_X`)
+
+Se corren como modulo, no como archivo suelto: asi resuelven `app/` y `core/`
+desde la raiz del repo.
 
 | Test | Que congela |
 |---|---|
@@ -229,9 +293,18 @@ el hook ya esta inyectado donde debe, solo falta conectarle un canal real.
 | `test_signal_detection.py` | regex de senales + merge de patrones custom |
 | `test_safety_prompt.py` | que `build_agent` SIEMPRE anteponga el safety prompt |
 | `test_context_middleware.py` | inyeccion de contexto sin tocar historial |
+| `test_settings.py` | fail-fast al arrancar sin API key del provider |
+| `test_llm_timeout.py` | que todo proveedor reciba timeout por default |
+| `test_empty_response_retry.py` | que un vacio de Gemini nunca se persista |
+| `test_tool_claim_guard.py` | que no se afirme un hecho sin la tool que lo respalda |
+| `test_kommo_client.py` | los dos limites de Kommo y la adaptacion de texto |
+| `test_abuse_detection.py` | insultos/jailbreak/ruido sin marcar mensajes normales |
+| `test_agrupado_mensajes.py` | agrupado por lead, sin mezclar ni arrastrar texto |
+| `test_date_normalization.py` | fechas relativas resueltas en codigo |
 
-Los `test_llm/agent/memory/runner.py` viejos son scripts de humo manuales
-(llaman LLM real, cuestan tokens); los cuatro de arriba corren sin red.
+Los scripts de `scripts/smoke/` (`test_llm/agent/memory/runner.py`) son de humo
+manual: llaman LLM y BD reales y cuestan tokens. Todo lo de `tests/` corre sin
+red ni BD.
 
 ## Deuda conocida (a proposito, ver docs/plan_de_trabajo.md)
 

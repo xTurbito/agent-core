@@ -26,14 +26,31 @@ explica que hace y POR QUE existe cada parte.
    APIs seguido. No actualices pins sueltos; si actualizas, corre los 4 tests.
 6. **Verifica APIs de LangChain/LangGraph con inspect antes de usarlas**, no
    asumas de memoria — ya nos ha cambiado la firma entre versiones.
+7. **El prompt pide, el guardian obliga.** Cuando el agente afirme como hecho
+   consumado algo que solo una tool sabe ("tu cita quedo agendada"), no lo
+   arregles metiendo mas texto al prompt: es probabilistico y ya lo rompio en
+   produccion. Usa `ToolClaimGuardMiddleware` de `core/guards.py`.
+8. **Kommo tiene rarezas de canal**: `execute_handlers` acepta maximo 10
+   bloques de 80 caracteres cada uno (~800 chars por respuesta), y algunos
+   emojis modernos llegan a WhatsApp como `?`. La salida pasa por
+   `app/integrations/kommo_client.py`. No lo quites sin probar en WhatsApp real.
 
 ## Comandos
 
 ```bash
-.venv/bin/python test_qualification.py        # los 4 corren sin red ni BD
-.venv/bin/python test_signal_detection.py
-.venv/bin/python test_safety_prompt.py
-.venv/bin/python test_context_middleware.py
+# tests viven en tests/ y se corren como modulo (asi resuelven app/ y core/):
+.venv/bin/python -m tests.test_qualification   # puras, sin red ni BD
+.venv/bin/python -m tests.test_signal_detection
+.venv/bin/python -m tests.test_safety_prompt
+.venv/bin/python -m tests.test_context_middleware
+.venv/bin/python -m tests.test_settings
+.venv/bin/python -m tests.test_llm_timeout
+.venv/bin/python -m tests.test_empty_response_retry
+.venv/bin/python -m tests.test_tool_claim_guard
+.venv/bin/python -m tests.test_kommo_client
+.venv/bin/python -m tests.test_abuse_detection
+.venv/bin/python -m tests.test_agrupado_mensajes
+.venv/bin/python -m tests.test_date_normalization
 
 .venv/bin/uvicorn main:app --port 8000        # servidor (UN worker, ver abajo)
 .venv/bin/python scripts/setup_app_db.py      # migraciones de tablas propias
@@ -41,13 +58,16 @@ explica que hace y POR QUE existe cada parte.
 
 Convenciones: tests = scripts planos con assert (sin pytest). Codigo y
 comentarios en espanol sin acentos. Referencias de dinero/negocio en espanol.
+Los scripts que pegan a LLM/BD reales (requieren env exportado) viven en
+`scripts/smoke/`, fuera de la bateria offline de `tests/`.
 
 ## Trampas conocidas (nos han mordido)
 
-- **El `.env` local apunta a una BD de negocio REAL compartida** (tiene tablas
-  de produccion tipo `Personas`, `Citas`, `Pagos` de AgendaSystem). No siembres
-  datos de prueba sin marcarlos (`source='test_...'`) y no borres nada que no
-  hayas creado.
+- **El `.env` local puede apuntar a una BD de negocio REAL compartida.** Antes
+  de sembrar datos de prueba, marcalos (`source='test_...'`) y no borres nada
+  que no hayas creado.
+- **Sin timeout, una llamada colgada al LLM cuelga la sesion para siempre.**
+  `core/llm.py` fija 30s por default; visto en pruebas de carga con 8 sesiones.
 - **Un solo worker de uvicorn**: locks por sesion, cache de dedup y
   `pending_ai_responses` viven en memoria del proceso. Dos workers = respuestas
   dobles y estado partido.
@@ -55,6 +75,10 @@ comentarios en espanol sin acentos. Referencias de dinero/negocio en espanol.
   proceso. Solo para desarrollo.
 - **Gemini con thinking regresa bloques, no string** — cualquier salida de LLM
   hacia el usuario debe pasar por `extract_text()` de `core/runner.py`.
+- **Gemini a veces regresa un AIMessage vacio** (finish STOP, 0 tokens). Si ese
+  vacio se persiste en el checkpoint la sesion queda muda para siempre: los
+  turnos siguientes imitan el patron del historial. Por eso
+  `EmptyResponseRetryMiddleware` reintenta ANTES de persistir.
 - **Los endpoints de Kommo devuelven JSON a Kommo, no al lead.** Lo unico que
   el lead ve es `respuesta` via `continue_salesbot`. No "mejores" esos JSON
   pensando que son mensajes de usuario.
