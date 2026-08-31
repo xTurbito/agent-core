@@ -6,6 +6,17 @@ La app solo llama responder(session_id, mensaje) y recibe texto.
 
 from threading import Lock
 
+from langgraph.errors import GraphRecursionError
+
+# Explicito en vez de confiar en el default de LangGraph (25): si un mensaje
+# ambiguo hace que el LLM entre en un loop de tool-calls, mejor cortar rapido
+# y responder algo seguro que dejar al usuario sin respuesta ese turno.
+RECURSION_LIMIT = 25
+FALLBACK_RESPONSE = (
+    "Dame un segundo para revisar eso con calma y te contesto. "
+    "Mientras tanto, ¿hay algo más en lo que te pueda ayudar?"
+)
+
 
 def extract_text(content) -> str:
     """Normaliza content de un mensaje de LLM a texto plano.
@@ -49,11 +60,26 @@ class AgentRunner:
             return self._locks[session_id]
 
     def _responder_con_metadata(self, session_id: str, mensaje: str) -> dict:
-        config = {"configurable": {"thread_id": session_id}}
-        result = self._agent.invoke(
-            {"messages": [("user", mensaje)]},
-            config,
-        )
+        config = {
+            "configurable": {"thread_id": session_id},
+            "recursion_limit": RECURSION_LIMIT,
+        }
+        try:
+            result = self._agent.invoke(
+                {"messages": [("user", mensaje)]},
+                config,
+            )
+        except GraphRecursionError:
+            # El LLM entro en un loop de tool-calls (mensaje ambiguo, datos
+            # contradictorios, etc.) y LangGraph corto la ejecucion. Sin este
+            # catch la excepcion sube sin manejar y el usuario se queda sin
+            # respuesta ese turno.
+            return {
+                "text": FALLBACK_RESPONSE,
+                "usage_metadata": None,
+                "response_metadata": None,
+            }
+
         message = result["messages"][-1]
 
         return {
@@ -61,8 +87,38 @@ class AgentRunner:
             "usage_metadata": getattr(message, "usage_metadata", None),
             "response_metadata": getattr(message, "response_metadata", None),
         }
-    
+
+    def registrar_turno(self, session_id: str, mensaje: str, respuesta: str) -> None:
+        """Guarda en el historial un turno que NO paso por el LLM.
+
+        Hay canales que responden solos a ciertos eventos (una foto que el
+        agente no puede ver, por ejemplo). Si ese turno no se registra, el
+        historial queda desincronizado con lo que el usuario ve: el agente no
+        sabe lo que el mismo dijo y repite lo que ya resolvio.
+
+        Va aparte de responder() a proposito: aqui no se invoca al modelo, solo
+        se escribe el checkpoint. Toma el lock de la sesion para no escribir
+        encima de un turno en curso.
+        """
+        from langchain_core.messages import AIMessage, HumanMessage
+
+        with self._get_session_lock(session_id):
+            self._agent.update_state(
+                {"configurable": {"thread_id": session_id}},
+                {"messages": [HumanMessage(content=mensaje), AIMessage(content=respuesta)]},
+            )
+
     def get_conversation_messages(self, session_id: str) -> list:
         config = {"configurable": {"thread_id": session_id}}
         snapshot = self._agent.get_state(config)
         return snapshot.values.get("messages", [])
+
+    def reset_thread(self, session_id: str) -> None:
+        """Borra por completo el historial de checkpoint de una sesion.
+
+        Para cuando una conversacion se da por cerrada (ej. cita ya
+        confirmada) y no debe arrastrar contexto viejo si la misma sesion
+        vuelve a escribir despues por algo nuevo.
+        """
+        with self._get_session_lock(session_id):
+            self._agent.checkpointer.delete_thread(session_id)
