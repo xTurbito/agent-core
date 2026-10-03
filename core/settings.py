@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     kommo_webhook_secret: str | None = None
     max_message_length: int = 4000
 
+    # Si esta vacio, el reporte de errores se queda solo en logging local
+    # (ver core/error_reporting.py).
+    sentry_dsn: str | None = None
+
     # Zona horaria del negocio. La usa la normalizacion de fechas relativas
     # ("mañana", "el sabado"): sin ella el servidor resolveria contra UTC y
     # despues de las 18:00 local ya estaria contestando con el dia siguiente.
