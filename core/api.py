@@ -6,15 +6,19 @@ Generico: RECIBE el runner ya armado. No sabe de tools ni negocio.
 
 import secrets
 from collections.abc import Callable
+from logging import getLogger
 from time import perf_counter
 from typing import Any
 
+import psycopg
 from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from core.runner import AgentRunner
 from core.settings import settings
 
+logger = getLogger(__name__)
 
 def require_chat_api_key(authorization: str | None = Header(default=None)) -> None:
     """Exige 'Authorization: Bearer <CHAT_API_KEY>' en /chat.
@@ -52,7 +56,27 @@ def create_app(
 
     @app.get("/health")
     def health():
-        return {"status": "ok"}
+        checks: dict[str, str] = {}
+        healthy = True
+
+        if settings.postgres_url:
+            try:
+                with psycopg.connect(settings.postgres_url, connect_timeout=3) as conn:
+                    conn.execute("SELECT 1")
+                checks["postgres"] = "ok"
+            except Exception:
+                # No se expone el detalle del error en la respuesta (podria
+                # filtrar credenciales de la URL de conexion); queda en el log.
+                logger.exception("Healthcheck: Postgres no responde")
+                checks["postgres"] = "unreachable"
+                healthy = False
+        else:
+            checks["postgres"] = "not configured"
+
+        return JSONResponse(
+            status_code=200 if healthy else 503,
+            content={"status": "ok" if healthy else "degraded", "checks": checks},
+        )
 
     @app.post("/chat", response_model=ChatResponse, dependencies=[Depends(require_chat_api_key)])
     def chat(req: ChatRequest) -> ChatResponse:
