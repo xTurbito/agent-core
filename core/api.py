@@ -54,7 +54,7 @@ def create_app(
 ) -> FastAPI:
     app = FastAPI(title="Chatbot Core")
 
-    @app.get("/health")
+    @app.api_route("/health", methods=["GET", "HEAD"])
     def health():
         checks: dict[str, str] = {}
         healthy = True

@@ -63,4 +63,16 @@ else:
 
 settings.postgres_url = original_url
 
+
+# --- HEAD debe responder igual que GET: varios monitores externos (ej. el
+# plan free de UptimeRobot) usan HEAD por default para pedir menos datos ---
+
+settings.postgres_url = None
+response = _client().head("/health")
+assert response.status_code == 200
+assert response.content == b""
+print("OK: HEAD /health responde 200 igual que GET (sin body, como manda HTTP)")
+
+settings.postgres_url = original_url
+
 print("\nTodas las pruebas del healthcheck pasaron.")
