@@ -114,11 +114,35 @@ class AgentRunner:
         return snapshot.values.get("messages", [])
 
     def reset_thread(self, session_id: str) -> None:
-        """Borra por completo el historial de checkpoint de una sesion.
+        """Archiva el historial de checkpoint de una sesion, liberando el
+        thread_id para que la sesion vuelva a arrancar limpia.
 
         Para cuando una conversacion se da por cerrada (ej. cita ya
         confirmada) y no debe arrastrar contexto viejo si la misma sesion
         vuelve a escribir despues por algo nuevo.
+
+        Archiva (renombra thread_id) en vez de borrar: un DELETE real no
+        deja rastro para depurar que paso si la conversacion se cerro de
+        forma prematura (ej. a mitad de un intercambio en curso, no en una
+        reactivacion real dias despues). El checkpointer no ofrece un
+        "archive" nativo, asi que se renombra directo en las 3 tablas que
+        usa PostgresSaver.delete_thread (checkpoints, checkpoint_blobs,
+        checkpoint_writes); verificado con inspect que son esas y ninguna
+        mas.
         """
+        from datetime import UTC, datetime
+
         with self._get_session_lock(session_id):
-            self._agent.checkpointer.delete_thread(session_id)
+            checkpointer = self._agent.checkpointer
+            if not hasattr(checkpointer, "conn"):
+                # InMemorySaver (desarrollo): no hay nada que archivar.
+                checkpointer.delete_thread(session_id)
+                return
+
+            archived_id = f"{session_id}::archived::{datetime.now(UTC).timestamp()}"
+            with checkpointer.conn.cursor() as cur:
+                for table in ("checkpoints", "checkpoint_blobs", "checkpoint_writes"):
+                    cur.execute(
+                        f"UPDATE {table} SET thread_id = %s WHERE thread_id = %s",  # noqa: S608
+                        (archived_id, session_id),
+                    )
