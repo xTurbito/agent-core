@@ -4,7 +4,7 @@ Congela los casos reales: insultos directos, intentos de jailbreak y ruido
 puro deben detectarse; preguntas normales (incluso quejas legitimas) no.
 """
 
-from app.business.abuse_detection import is_abusive_message
+from core.abuse_detection import is_abusive_message
 
 # --- Insultos ---
 

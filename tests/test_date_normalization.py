@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from app.business.date_normalization import normalize_client_date
+from core.date_normalization import normalize_client_date
 
 TODAY = date(2026, 7, 5)  # domingo
 

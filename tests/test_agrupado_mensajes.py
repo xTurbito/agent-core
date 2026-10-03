@@ -8,7 +8,7 @@ dos ciclos con 1.3 segundos de diferencia).
 
 import asyncio
 
-from app.business.agrupado_mensajes import AgrupadorDeMensajes
+from core.agrupado_mensajes import AgrupadorDeMensajes
 
 VENTANA = 0.05
 
