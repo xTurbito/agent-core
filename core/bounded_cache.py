@@ -9,7 +9,7 @@ de carrera.
 
 from __future__ import annotations
 
-import time 
+import time
 from collections import OrderedDict
 from threading import Lock
 from typing import Generic, TypeVar
@@ -17,8 +17,6 @@ from typing import Generic, TypeVar
 K = TypeVar("K")
 V = TypeVar("V")
 
-
-_SENTINEL = object()
 
 class BoundedCache(Generic[K, V]):
     """Cache en memoria con tamano maximo fijo y TTL opcional.
@@ -28,9 +26,10 @@ class BoundedCache(Generic[K, V]):
     ausente en get/__contains__ y se purga perezosamente (sin hilo de
     limpieza en background).
     """
+
     def __init__(self, max_size: int, ttl_seconds: float | None = None) -> None:
-        if max_size <= 0: 
-            raise ValueError("max_size debe ser mayor que 0")
+        if max_size <= 0:
+            raise ValueError("max_size debe ser mayor a 0")
         if ttl_seconds is not None and ttl_seconds <= 0:
             raise ValueError("ttl_seconds debe ser mayor a 0 si se especifica")
 
@@ -47,11 +46,10 @@ class BoundedCache(Generic[K, V]):
 
     def get(self, key: K, default: V | None = None) -> V | None:
         with self._lock:
-            entry = self._data.get(key, _SENTINEL)
-            if entry is _SENTINEL:
+            if key not in self._data:
                 return default
 
-            value, stored_at = entry
+            value, stored_at = self._data[key]
             if self._is_expired(stored_at):
                 del self._data[key]
                 return default
@@ -61,15 +59,25 @@ class BoundedCache(Generic[K, V]):
 
     def __contains__(self, key: K) -> bool:
         with self._lock:
-            entry = self._data.get(key, _SENTINEL)
-            if entry is _SENTINEL:
+            if key not in self._data:
                 return False
 
-            _, stored_at = entry
+            _, stored_at = self._data[key]
             if self._is_expired(stored_at):
                 del self._data[key]
                 return False
 
             return True
 
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._data)
+
+    def _is_expired(self, stored_at: float) -> bool:
+        if self._ttl_seconds is None:
+            return False
+        return (time.monotonic() - stored_at) > self._ttl_seconds
+
+    def _evict_if_needed(self) -> None:
+        while len(self._data) > self._max_size:
             self._data.popitem(last=False)
