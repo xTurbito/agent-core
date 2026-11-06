@@ -21,6 +21,10 @@ core/   estable, generico (NUNCA se edita en un fork)
   memory.py     historial de conversacion (checkpointer memory/postgres)
   runner.py     interfaz simple: responder(session_id, mensaje)
   api.py        /health y POST /chat (con auth por API key)
+  guards.py     guardianes (ej. no afirmar algo que solo una tool sabe)
+  bounded_cache.py   cache acotada (dedup de mensajes)
+  error_reporting.py reporte de errores (Sentry opcional)
+  tracing.py    trazas por turno hacia observabilidad LLM (opcional)
   webhooks.py   verificacion HMAC generica (Meta/Shopify futuros)
   settings.py   config desde .env (pydantic-settings)
 
@@ -45,8 +49,12 @@ Regla de oro: **`core` nunca importa de `app`**. La dependencia va
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt   # versiones fijadas, no cambiar sueltas
-cp .env.example .env                        # llenar API key del LLM como minimo
+cp .env.example .env                        # llenar API key del LLM y CHAT_API_KEY
 ```
+
+Minimo en el `.env` para que funcione `/chat`: `LLM_PROVIDER`, `LLM_MODEL`, la
+API key de ese proveedor y `CHAT_API_KEY` (cualquier string; sin ella `/chat`
+rechaza todo). El body de `/chat` usa `mensaje` (no `message`) y `session_id`.
 
 Con Postgres (produccion — en dev puedes trabajar con MEMORY_KIND=memory):
 
@@ -74,6 +82,54 @@ curl -s -X POST http://127.0.0.1:8000/chat \
 `/chat` y el webhook de Kommo son **fail-closed**: sin `CHAT_API_KEY` /
 `KOMMO_WEBHOOK_SECRET` en el `.env` rechazan todo. Es a proposito.
 
+## Quickstart: levantarlo y conversar en local
+
+Para alguien que acaba de clonar el repo y quiere ver al agente funcionando
+(sin Postgres ni Kommo):
+
+```bash
+# 1. Entorno
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+
+# 2. Config: copia el ejemplo y edita .env
+cp .env.example .env
+#    LLM_PROVIDER=google | anthropic | openai
+#    LLM_MODEL=<modelo de ese proveedor>
+#    GOOGLE_API_KEY= / ANTHROPIC_API_KEY= / OPENAI_API_KEY=  (la del proveedor)
+#    MEMORY_KIND=memory
+#    CHAT_API_KEY=cualquier-string   (solo si vas a usar el servidor HTTP)
+```
+
+**Opcion A — chat en terminal (la mas simple, no necesita servidor):**
+
+```bash
+.venv/bin/python -m scripts.chat_cli
+```
+
+Escribes, el agente contesta con el prompt y las tools del fork. `/nuevo`
+reinicia la conversacion, `/salir` termina. Con `MEMORY_KIND=memory` el
+historial vive solo mientras corre el proceso.
+
+**Opcion B — servidor HTTP** (lo que usan Kommo y cualquier front):
+
+```bash
+.venv/bin/uvicorn main:app --port 8000      # UN solo worker
+```
+
+- Navegador: `http://127.0.0.1:8000/docs` (Swagger). Pulsa Authorize, pega tu
+  `CHAT_API_KEY`, y prueba `POST /chat` con `{"session_id": "x", "mensaje": "Hola"}`.
+  Reusa el mismo `session_id` para continuar la conversacion.
+- Terminal: el `curl` de la seccion "Correr".
+
+**Como saber que todo esta bien:**
+
+1. `.venv/bin/python -m tests.test_settings` y los demas tests pasan (no usan red).
+2. `curl http://127.0.0.1:8000/health` responde `{"status":"ok",...}`.
+3. Un mensaje en el chat regresa texto del LLM. Si ves `401` o "invalid api
+   key", la key del `.env` no corresponde al `LLM_PROVIDER`. Si `/chat` da 422,
+   el campo es `mensaje`, no `message`.
+
 ## Tests
 
 Viven en `tests/` y se corren como modulo desde la raiz del repo:
@@ -91,6 +147,10 @@ Viven en `tests/` y se corren como modulo desde la raiz del repo:
 .venv/bin/python -m tests.test_abuse_detection      # insultos/jailbreak/ruido
 .venv/bin/python -m tests.test_agrupado_mensajes    # mensajes seguidos en un turno
 .venv/bin/python -m tests.test_date_normalization   # fechas relativas
+.venv/bin/python -m tests.test_agent_runner         # runner: locks y agrupado por sesion
+.venv/bin/python -m tests.test_api_health           # healthcheck profundo
+.venv/bin/python -m tests.test_bounded_cache        # cache acotada
+.venv/bin/python -m tests.test_error_reporting      # reporte de errores
 ```
 
 Corren sin red y sin BD. Correlos antes de commitear cambios a `core/` o
