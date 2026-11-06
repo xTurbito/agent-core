@@ -85,7 +85,15 @@ curl -s -X POST http://127.0.0.1:8000/chat \
 ## Quickstart: levantarlo y conversar en local
 
 Para alguien que acaba de clonar el repo y quiere ver al agente funcionando
-(sin Postgres ni Kommo):
+(sin Postgres ni Kommo).
+
+**Requisito:** Python 3.12 o superior (probado en 3.12 y 3.14).
+
+> **Windows:** los comandos del README usan rutas de Linux/macOS
+> (`.venv/bin/python`). En Windows cambia `.venv/bin/python` por
+> `.venv\Scripts\python.exe`, `.venv/bin/pip` por `.venv\Scripts\pip.exe` y
+> `.venv/bin/uvicorn` por `.venv\Scripts\uvicorn.exe`. Alternativa: activa el
+> venv (`.venv\Scripts\activate`) y usa `python`, `pip` y `uvicorn` a secas.
 
 ```bash
 # 1. Entorno
