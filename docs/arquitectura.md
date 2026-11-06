@@ -130,6 +130,41 @@ Webhook HTTP generico: `/health` y `POST /chat`.
   detalle va a `on_error` y `log_usage` (inyectados desde `main.py`), nunca al
   cliente.
 
+### core/bounded_cache.py
+`BoundedCache[K, V]`: cache en memoria con tamano maximo fijo (eviction LRU)
+y TTL opcional, thread-safe. **Por que existe:** varios mecanismos necesitan
+"recordar temporalmente sin crecer sin limite" (dedup de `message_id` en
+Kommo, contadores por sesion) y cada uno lo reimplementaba suelto. Ahora es
+una sola primitiva: `max_size` obligatorio, `ttl_seconds` opcional, purga
+perezosa (sin hilo de limpieza en background).
+
+### core/error_reporting.py
+`with_error_tracking()`: envuelve un `ErrorHandler` ya existente y le agrega
+reporte a un servicio externo de error tracking (Sentry en produccion), sin
+reemplazar lo que el handler ya hacia. **Por que existe:** antes un error solo
+quedaba en logs/print; ahora llega como push a celular. Sin DSN configurado
+el wrapper se vuelve no-op (solo llama al handler original) — un fallo al
+reportar hacia afuera nunca debe tapar lo que el handler ya hacia. Por
+diseno NO manda PII (`send_default_pii=False`) ni traces de performance
+(`traces_sample_rate=0`): el alcance es solo captura de errores de codigo,
+nunca trazas de conversacion (eso es Langfuse, ver abajo). Verificado
+end-to-end en los 3 repos (2026-10-03).
+
+### core/tracing.py
+`build_callbacks()`: arma la lista de callbacks de LangChain/LangGraph que
+registra, por turno, el prompt enviado, las tools llamadas y la latencia de
+cada paso, hacia Langfuse self-hosted. **Por que separado de Sentry:**
+audiencia distinta — Langfuse es para depurar/optimizar el comportamiento del
+LLM turno a turno, Sentry es para errores de codigo. Sin credenciales
+(`langfuse_public_key`/`langfuse_secret_key`) regresa lista vacia y el
+`invoke()` del agente sigue igual — un fallo de esta capa nunca debe impedir
+que el agente responda. Las credenciales se pasan explicitas desde
+`settings` en vez de confiar en variables de entorno, porque
+pydantic-settings carga el `.env` a su propio objeto sin tocar `os.environ`.
+**Pendiente:** este archivo existe y funciona en produccion, pero sigue SIN
+COMMITEAR en este repo (solo en el working tree local) — ver
+`docs/plan_de_trabajo.md`, Fase 4.
+
 ### core/webhooks.py
 `verify_hmac_signature()`: verificacion HMAC generica en tiempo constante, con
 soporte de prefijo (formato Meta `sha256=<hex>`). **Por que existe ya:** Kommo
@@ -306,10 +341,25 @@ Los scripts de `scripts/smoke/` (`test_llm/agent/memory/runner.py`) son de humo
 manual: llaman LLM y BD reales y cuestan tokens. Todo lo de `tests/` corre sin
 red ni BD.
 
-## Deuda conocida (a proposito, ver docs/plan_de_trabajo.md)
+## Deuda conocida (ver docs/plan_de_trabajo.md para el detalle y prioridad)
 
-Pool de conexiones Postgres, `logging` en vez de print, fail-fast de settings
-al arrancar, locks sin limite en runner, summarization del historial largo
-(`SummarizationMiddleware` ya viene en la version instalada de langchain),
-cola/worker para rafagas, escritura a Kommo, seguimientos automaticos.
-Congelados deliberadamente hasta que el primer piloto este en produccion.
+**Ya no esta en fase de piloto**: Volt y Bea corren en produccion real desde
+2026-10-03, con Sentry + Langfuse + UptimeRobot verificados end-to-end. La
+deuda que sigue abierta no esta "congelada esperando el piloto" — es deuda
+real sin resolver, verificada contra el codigo:
+
+- Pool de conexiones Postgres en `app/memory/profiles.py` (sigue abriendo
+  una conexion nueva por query).
+- `logging` real en vez de `print()` (`app/channels/kommo.py`,
+  `app/integrations/kommo_client.py` siguen con print).
+- `AgentRunner._locks` sin limite (`core/runner.py`).
+- `SummarizationMiddleware` para historial largo (LangChain ya lo trae; ver
+  Fase 4 del plan — issue #3, no reimplementar desde cero).
+- Cola/worker para rafagas, escritura automatica de seguimientos a leads
+  frios: sin empezar en ningun fork.
+- Generalizacion de los guards de negocio de Volt/Bea hacia `core/` — la
+  Fase 4 completa del plan de trabajo, con hallazgo critico de que
+  `core/guards.py` ya diverge entre forks.
+
+Fail-fast de settings al arrancar **ya esta resuelto** (`core/settings.py`
+lanza `RuntimeError` si falta la API key del provider activo).
