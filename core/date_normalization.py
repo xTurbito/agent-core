@@ -5,7 +5,9 @@ no sabe que dia es hoy y calcula mal. Aqui se resuelve en Python puro contra
 la zona horaria del negocio, y al modelo se le entrega ya la fecha ISO.
 """
 
+import calendar
 from dataclasses import asdict, dataclass
+from dataclasses import replace as dataclasses_replace
 from datetime import date, datetime, timedelta
 import re
 import unicodedata
@@ -45,6 +47,21 @@ AMBIGUOUS_RELATIVE_RE = re.compile(
 )
 
 
+_NOMBRES_DIA_SEMANA = (
+    "lunes",
+    "martes",
+    "miercoles",
+    "jueves",
+    "viernes",
+    "sabado",
+    "domingo",
+)
+
+
+def nombre_dia_semana(fecha: date) -> str:
+    return _NOMBRES_DIA_SEMANA[fecha.weekday()]
+
+
 @dataclass(frozen=True)
 class DateInterpretation:
     status: str
@@ -53,13 +70,35 @@ class DateInterpretation:
     interpretation: str
     needs_confirmation: bool
     reason: str | None = None
+    weekday_name: str | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
 
 
+def business_zone() -> ZoneInfo:
+    return ZoneInfo(settings.business_timezone)
+
+
 def today_in_business_timezone() -> date:
-    return datetime.now(ZoneInfo(settings.business_timezone)).date()
+    return datetime.now(business_zone()).date()
+
+
+def months_between(start: date, end: date) -> int:
+    """Meses de calendario completos entre dos fechas (no dias/30: un 6 de
+    mayo a un 4 de noviembre son 6 meses, sin importar la duracion real de
+    cada mes). Si end < start, regresa un numero negativo.
+
+    El dia de start se compara contra el "aniversario" clampeado al ultimo
+    dia real del mes de end, no contra end.day directo: sin esto, un 31 de
+    enero a un 30 de junio (17 meses reales, el aniversario 31-jun no
+    existe) contaba solo 16 y movia de rango cualquier calculo por meses."""
+    months = (end.year - start.year) * 12 + (end.month - start.month)
+    ultimo_dia_mes_destino = calendar.monthrange(end.year, end.month)[1]
+    dia_aniversario = min(start.day, ultimo_dia_mes_destino)
+    if end.day < dia_aniversario:
+        months -= 1
+    return months
 
 
 def normalize_client_date(
@@ -67,7 +106,24 @@ def normalize_client_date(
     *,
     today: date | None = None,
 ) -> DateInterpretation | None:
-    """Convierte una fecha dicha por el usuario a YYYY-MM-DD cuando es posible."""
+    """Convierte una fecha dicha por el usuario a YYYY-MM-DD cuando es posible.
+
+    Si el usuario tambien dijo un dia de la semana (ej. "el lunes 17 de
+    noviembre"), ese nombre se ignora: weekday_name siempre es el dia real
+    calculado en Python, porque el modelo etiquetaba fechas con el dia que el
+    usuario dijo sin verificarlo."""
+    interpretation = _normalize_client_date_inner(text, today=today)
+    if interpretation is None or interpretation.date is None:
+        return interpretation
+    dia_real = nombre_dia_semana(date.fromisoformat(interpretation.date))
+    return dataclasses_replace(interpretation, weekday_name=dia_real)
+
+
+def _normalize_client_date_inner(
+    text: str,
+    *,
+    today: date | None = None,
+) -> DateInterpretation | None:
     reference = today or today_in_business_timezone()
     normalized = _normalize_text(text)
 
@@ -193,7 +249,7 @@ def _parse_numeric_date(text: str, reference: date) -> tuple[str, date] | None:
 def _parse_month_name_date(text: str, reference: date) -> tuple[str, date] | None:
     month_names = "|".join(MONTHS)
     match = re.search(
-        rf"\b(\d{{1,2}})\s+de\s+({month_names})(?:\s+de\s+(\d{{2,4}}))?\b",
+        rf"\b(\d{{1,2}})\s+de\s+({month_names})(?:\s+del?\s+(\d{{2,4}}))?\b",
         text,
     )
     if not match:
