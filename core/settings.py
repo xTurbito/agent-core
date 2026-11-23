@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     llm_fallback_model: str | None = None
     llm_fallback_reasoning_effort: str | None = None
 
+    # logging: DEBUG saca las trazas con datos de la persona que escribe
+    log_level: str = "INFO"
+
     # tipo de memoria
     memory_kind: str = "memory"
     postgres_url: str | None = None
