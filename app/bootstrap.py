@@ -29,7 +29,8 @@ def construir_llms() -> tuple:
         **extras,
     )
     llm_respaldo = None
-    if key_respaldo:
+    # require_fallback_llm_api_key ya valido proveedor y modelo; esto solo lo hace visible a mypy.
+    if key_respaldo and settings.llm_fallback_provider and settings.llm_fallback_model:
         llm_respaldo = make_llm(
             settings.llm_fallback_provider,
             settings.llm_fallback_model,
