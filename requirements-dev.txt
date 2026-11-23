@@ -1,0 +1,4 @@
+# Herramientas de desarrollo (lint/type-check). No son dependencias de
+# runtime, no se instalan en produccion.
+ruff==0.16.3
+mypy==2.3.1
