@@ -13,7 +13,7 @@ from typing import Any
 import psycopg
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from core.runner import AgentRunner
 from core.settings import settings
@@ -37,6 +37,13 @@ def require_chat_api_key(authorization: str | None = Header(default=None)) -> No
 class ChatRequest(BaseModel):
     session_id: str
     mensaje: str = Field(max_length=settings.max_message_length)
+
+    @field_validator("session_id")
+    @classmethod
+    def session_id_no_vacio(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("session_id no puede estar vacio")
+        return v  # sin strip: " abc " debe pasar igual
 
 
 class ChatResponse(BaseModel):
