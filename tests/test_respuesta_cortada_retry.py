@@ -36,7 +36,9 @@ assert _respuesta_cortada(respuesta("Sin metadata", None)) is False
 assert _respuesta_cortada(ModelResponse(result=[])) is False
 # Una respuesta con tool_calls es una llamada a tool, no texto para el usuario.
 assert _respuesta_cortada(
-    respuesta("", "length", tool_calls=[{"name": "consultar_disponibilidad", "args": {}, "id": "1"}])
+    respuesta(
+        "", "length", tool_calls=[{"name": "consultar_disponibilidad", "args": {}, "id": "1"}]
+    )
 ) is False
 print("OK: solo cuenta como cortada una respuesta de texto con finish_reason=length")
 
