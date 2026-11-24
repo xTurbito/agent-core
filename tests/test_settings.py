@@ -20,6 +20,11 @@ with patch.multiple(settings, llm_provider="google", google_api_key="k-123"):
     assert settings.require_llm_api_key() == "k-123"
 print("OK: con API key la regresa")
 
+# Caso 2b: openrouter sigue el mismo contrato que los demas providers
+with patch.multiple(settings, llm_provider="openrouter", openrouter_api_key="or-123"):
+    assert settings.require_llm_api_key() == "or-123"
+print("OK: openrouter sigue el mismo contrato de API key")
+
 # Caso 3: provider desconocido tambien truena (active_llm_api_key da None)
 with patch.multiple(settings, llm_provider="inventado"):
     try:

@@ -34,10 +34,24 @@ explica que hace y POR QUE existe cada parte.
    bloques de 80 caracteres cada uno (~800 chars por respuesta), y algunos
    emojis modernos llegan a WhatsApp como `?`. La salida pasa por
    `app/integrations/kommo_client.py`. No lo quites sin probar en WhatsApp real.
+9. **Una regla vive en una sola capa.** El prompt, las docstrings de las tools
+   (son prompt: el modelo las obedece) y las instrucciones que entregue el
+   catalogo del fork le hablan al modelo a la vez. Antes de cambiar una regla
+   de comportamiento lee `docs/capas-de-instrucciones.md`. Antes de reescribir
+   el prompt o cambiar como suena el agente lee `docs/voz-con-ejemplos.md`.
 
 ## Comandos
 
 ```bash
+# toda la bateria offline de una vez (es lo que corre el CI en cada push, ver
+# .github/workflows/ci.yml). Vacia POSTGRES_URL para no tocar la BD real:
+.venv/bin/python scripts/correr_bateria.py
+.venv/bin/python scripts/correr_bateria.py test_settings test_llm_timeout  # solo algunos
+
+# lint/type-check (requirements-dev.txt; informativos en CI hasta llegar a cero):
+.venv/bin/ruff check .
+.venv/bin/mypy --config-file pyproject.toml core app main.py
+
 # tests viven en tests/ y se corren como modulo (asi resuelven app/ y core/):
 .venv/bin/python -m tests.test_qualification   # puras, sin red ni BD
 .venv/bin/python -m tests.test_signal_detection
@@ -51,6 +65,11 @@ explica que hace y POR QUE existe cada parte.
 .venv/bin/python -m tests.test_abuse_detection
 .venv/bin/python -m tests.test_agrupado_mensajes
 .venv/bin/python -m tests.test_date_normalization
+.venv/bin/python -m tests.test_chat_session_id         # session_id vacio -> 422
+.venv/bin/python -m tests.test_respuesta_cortada_retry # finish_reason "length" se reintenta
+.venv/bin/python -m tests.test_modelo_respaldo         # LLM_FALLBACK_* toma el turno si el primario falla
+.venv/bin/python -m tests.test_logging_config
+.venv/bin/python -m tests.test_redaccion_secretos      # ?secret= no sale en logs ni Sentry
 
 .venv/bin/uvicorn main:app --port 8000        # servidor (UN worker, ver abajo)
 .venv/bin/python scripts/setup_app_db.py      # migraciones de tablas propias
