@@ -58,3 +58,6 @@ Al modelo le llegan ordenes desde varios lugares y las lee todas juntas:
 Cada llamada manda el prompt completo mas historial y resultados de tools. En
 BEA eran 20 a 25 mil tokens por llamada (~60% ya en cache del proveedor). Corre
 solo los casos que toca el cambio.
+
+Para la voz del agente (ejemplos en vez de adjetivos, guards que no pegan texto
+fijo, version del prompt detras de una variable) ver `docs/voz-con-ejemplos.md`.

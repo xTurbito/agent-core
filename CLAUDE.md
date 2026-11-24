@@ -37,7 +37,8 @@ explica que hace y POR QUE existe cada parte.
 9. **Una regla vive en una sola capa.** El prompt, las docstrings de las tools
    (son prompt: el modelo las obedece) y las instrucciones que entregue el
    catalogo del fork le hablan al modelo a la vez. Antes de cambiar una regla
-   de comportamiento lee `docs/capas-de-instrucciones.md`.
+   de comportamiento lee `docs/capas-de-instrucciones.md`. Antes de reescribir
+   el prompt o cambiar como suena el agente lee `docs/voz-con-ejemplos.md`.
 
 ## Comandos
 
