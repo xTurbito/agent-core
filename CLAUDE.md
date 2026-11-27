@@ -71,9 +71,14 @@ explica que hace y POR QUE existe cada parte.
 .venv/bin/python -m tests.test_llm_suelto_respaldo    # llamadas sueltas (resumen) tambien usan el respaldo
 .venv/bin/python -m tests.test_logging_config
 .venv/bin/python -m tests.test_redaccion_secretos      # ?secret= no sale en logs ni Sentry
+.venv/bin/python -m tests.test_evals                   # arnes de evals (sin LLM)
 
 .venv/bin/uvicorn main:app --port 8000        # servidor (UN worker, ver abajo)
 .venv/bin/python scripts/setup_app_db.py      # migraciones de tablas propias
+
+# evals contra el LLM real (gastan tokens, no corren en CI; ver docs/evals.md):
+.venv/bin/python -m scripts.evals.correr
+.venv/bin/python -m scripts.evals.correr --con-respaldo   # mide el modelo de respaldo
 ```
 
 Convenciones: tests = scripts planos con assert (sin pytest). Codigo y
