@@ -62,15 +62,19 @@ assert con_del is not None
 assert con_del.date == "2025-05-06", con_del.date
 print("OK: 'del <año>' conserva el año explicito, no lo empuja al futuro")
 
-# Bug real: la clienta dijo "lunes 17 de
+rango = normalize_client_date("5 de mayo del 10 al 12", today=date(2026, 4, 1))
+assert rango is not None and rango.date == "2026-05-05", rango
+print("OK: 'del 10 al 12' es un rango de dias, no el año 2010")
+
+# Bug real: el cliente dijo "lunes 17 de
 # noviembre" y "miercoles 19 de noviembre", BEA repitio esos nombres sin
 # verificar -- ninguno de los dos es correcto (son martes y jueves). El
-# nombre que dice la clienta se IGNORA; weekday_name siempre es el real.
+# nombre que dice el cliente se IGNORA; weekday_name siempre es el real.
 con_dia_equivocado = normalize_client_date("el lunes 17 de noviembre de 2026", today=TODAY)
 assert con_dia_equivocado is not None
 assert con_dia_equivocado.date == "2026-11-17"
 assert con_dia_equivocado.weekday_name == "martes", con_dia_equivocado.weekday_name
-print("OK: weekday_name es el dia real, no el que dijo la clienta")
+print("OK: weekday_name es el dia real, no el que dijo el cliente")
 
 otro_dia_equivocado = normalize_client_date("el miercoles 19 de noviembre de 2026", today=TODAY)
 assert otro_dia_equivocado is not None
