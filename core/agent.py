@@ -126,7 +126,11 @@ def _respuesta_cortada(response: ModelResponse) -> bool:
     if getattr(mensaje, "tool_calls", None):
         return False
     metadata = getattr(mensaje, "response_metadata", None) or {}
-    return metadata.get("finish_reason") == "length"
+    # OpenAI/OpenRouter: "length"; Gemini: "MAX_TOKENS"; Anthropic: stop_reason "max_tokens".
+    return (
+        metadata.get("finish_reason") in ("length", "MAX_TOKENS")
+        or metadata.get("stop_reason") == "max_tokens"
+    )
 
 
 class ContextInjectionMiddleware(AgentMiddleware):
