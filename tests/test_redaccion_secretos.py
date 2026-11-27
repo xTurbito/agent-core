@@ -109,6 +109,8 @@ assert callable(kwargs.get("before_send")), "sentry_sdk.init no recibio before_s
 filtrado = kwargs["before_send"](evento(), {})
 assert filtrado is not None and SECRETO not in repr(filtrado)
 print("OK: sentry_sdk.init arranca con un before_send que oculta el secreto")
+assert kwargs.get("include_local_variables") is False, "Sentry no debe mandar variables locales"
+print("OK: Sentry no manda las variables locales (traen el texto de la conversacion)")
 
 # ===== Bordes del mismo mecanismo =====
 
