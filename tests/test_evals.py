@@ -209,4 +209,106 @@ assert [t.llamadas_modelo for t in turnos] == [1, 1]
 assert evaluar(turnos, []).modelos == {"falso": 2}
 print("OK: con build_agent real cuenta las llamadas y lee el modelo de cada turno")
 
+
+class PrimarioSinSaldo(ModeloFalso):
+    def _generate(self, *args, **kwargs):
+        raise RuntimeError("402: sin saldo")
+
+
+respaldo_ok = ModeloFalso(
+    messages=iter(
+        [AIMessage(content="Claro, ¿que dia?", response_metadata={"model_name": "resp"})]
+    )
+)
+con_caida = build_agent(
+    PrimarioSinSaldo(messages=iter([])),
+    [],
+    "prompt",
+    checkpointer=make_checkpointer(),
+    llm_respaldo=respaldo_ok,
+)
+turno_caido = correr_caso(con_caida, ["Quiero una cita"])[0]
+assert turno_caido.final == "Claro, ¿que dia?" and turno_caido.contesto == "resp"
+assert turno_caido.llamadas_modelo == 2, "cuenta el intento del primario y el del respaldo"
+print("OK: si el primario se cae, el arnes muestra que contesto el respaldo")
+
+# --- 8. hallazgos de la revision ---
+
+
+class AgenteMezclado:
+    """Turno mixto: el primario llama una tool, el respaldo otra y el primario cierra."""
+
+    def __init__(self, error_en=None):
+        self.error_en = error_en
+        self.vistos = 0
+
+    def invoke(self, entrada, config):
+        self.vistos += 1
+        if self.error_en == self.vistos:
+            raise RuntimeError("primario y respaldo caidos")
+        return {
+            "messages": [
+                HumanMessage(content=entrada["messages"][0][1]),
+                AIMessage(
+                    content="",
+                    tool_calls=[{"name": "t", "args": {}, "id": "1"}],
+                    response_metadata={"model_name": "primario"},
+                ),
+                ToolMessage(content="{}", name="t", tool_call_id="1"),
+                AIMessage(
+                    content="",
+                    tool_calls=[{"name": "t", "args": {}, "id": "2"}],
+                    response_metadata={"model_name": "respaldo"},
+                ),
+                ToolMessage(content="{}", name="t", tool_call_id="2"),
+                AIMessage(
+                    content="Listo, ¿algo mas?", response_metadata={"model_name": "primario"}
+                ),
+            ]
+        }
+
+
+mezclado = correr_caso(AgenteMezclado(), ["hola"])
+assert mezclado[0].modelos == ["primario", "respaldo"]
+assert mezclado[0].contesto == "primario"
+assert evaluar(mezclado, []).modelos == {"primario": 1}
+print("OK: 'contesto' es el modelo del mensaje final, no el ultimo que aparecio")
+
+con_error = correr_caso(AgenteMezclado(error_en=2), ["uno", "dos", "tres"])
+assert [t.numero for t in con_error] == [1, 2], "el caso se corta en el turno que fallo"
+assert con_error[1].final == "" and "primario y respaldo caidos" in con_error[1].error
+fallas = evaluar(con_error, [regla_sin_respuesta_vacia]).violaciones
+assert [(v.turno, v.regla) for v in fallas] == [(2, "sin_respuesta_vacia")]
+assert "caidos" in fallas[0].detalle
+print("OK: un error del modelo queda como violacion del turno y no tumba la corrida")
+
+emoji = reglas_de_tono(max_emojis=1)[1]
+assert emoji([turno(2, "Te esperamos 🇲🇽")]) == [], "una bandera es un emoji"
+assert emoji([turno(2, "Familia 👨‍👩‍👧")]) == [], "una secuencia ZWJ es un emoji"
+assert emoji([turno(2, "Hace 25°C © ™")]) == [], "simbolos de texto no son emojis"
+assert emoji([turno(2, "Opcion 1️⃣ o 2️⃣")]) != [], "los keycaps cuentan"
+print("OK: el conteo de emojis trata banderas, ZWJ y keycaps como uno y no cuenta simbolos")
+
+saludo = reglas_de_tono()[0]
+assert saludo([turno(2, "Buenas noticias: hay espacio el martes")]) == []
+assert saludo([turno(2, "Buenas tardes, ¿te ayudo?")]) != []
+assert saludo([turno(2, "👋 Hola otra vez")]) != []
+print("OK: 'Buenas noticias' no es saludo; 'Buenas tardes' y '👋 Hola' si")
+
+con_url = reglas_de_tono(tool_escalar="escalar")
+url_al_escalar = turno(3, "Te paso con el equipo: https://x.test/p?id=1", ["escalar"])
+url_sin_pregunta = turno(4, "Aqui esta el link https://x.test/p?id=1")
+violaciones_url = evaluar([url_al_escalar, url_sin_pregunta], con_url).violaciones
+reglas_url = sorted(v.regla for v in violaciones_url)
+assert reglas_url == ["tono_cierra_con_pregunta"], reglas_url
+print("OK: el ? de una URL no cuenta como pregunta")
+
+try:
+    correr.main(["saludo", "0"])
+except SystemExit as exc:
+    assert exc.code != 0
+else:
+    raise AssertionError("corridas=0 debe rechazarse")
+print("OK: corridas tiene que ser mayor que 0")
+
 print("\nTodas las pruebas del arnes de evals pasaron.")

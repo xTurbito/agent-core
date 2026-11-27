@@ -36,17 +36,25 @@ def imprimir(nombre: str, corrida: int, turnos: list[Turno], metricas: Metricas)
     for t in turnos:
         print(
             f"[t{t.numero}] {t.segundos:5.1f}s modelo x{t.llamadas_modelo} "
-            f"tools={t.tools} contesto={t.modelos[-1] if t.modelos else '?'}\n"
+            f"tools={t.tools} contesto={t.contesto or '?'}"
+            f"{' ERROR ' + t.error if t.error else ''}\n"
             f"      {t.final[:200]}"
         )
     for v in metricas.violaciones:
         print(f"  !! t{v.turno} {v.regla} {v.detalle}")
 
 
+def _positivo(valor: str) -> int:
+    numero = int(valor)
+    if numero < 1:
+        raise argparse.ArgumentTypeError("corridas tiene que ser mayor que 0")
+    return numero
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Evals del agente contra el LLM real")
     parser.add_argument("caso", nargs="?", default="todos", help="nombre del caso o 'todos'")
-    parser.add_argument("corridas", nargs="?", type=int, default=1)
+    parser.add_argument("corridas", nargs="?", type=_positivo, default=1)
     parser.add_argument(
         "--con-respaldo", action="store_true", help="usa solo el modelo de respaldo"
     )
