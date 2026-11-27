@@ -8,6 +8,7 @@ Objetivo: llevar a agent-core los aprendizajes genericos de BEA (fork de salon) 
 - S2. No chocar con el trabajo sin commit de ../agent-core-eventos (feat/agent-events: agent_events.py y handoff_events.py). Lo que toca main.py, app/bootstrap.py o la lista de middleware de build_agent va despues o coordinado.
 - S3. Cada unidad con sus tests. Agent-core es un contrato que otros forks consumen: revision independiente antes de pedir el merge.
 - S4. El modelo de respaldo cubre toda llamada al LLM, no solo la del agente: en BEA, el 2026-11-26, el resumidor y el SummarizationMiddleware solo usaban el principal y fallaron cuando la key llego a su tope.
+- S5. Arnes de evals generico para que cada fork, incluido el agente nuevo, nazca midiendo: correr casos de varios turnos contra el agente armado igual que en produccion, reglas puras (respuesta vacia y rubrica de tono) que el fork extiende con las suyas, y la opcion de correr con el modelo de respaldo como principal.
 
 ## Tasks
 
@@ -22,6 +23,7 @@ Objetivo: llevar a agent-core los aprendizajes genericos de BEA (fork de salon) 
 | T7 | S1, S2, S3 | U6 monitoring: decidir si se acepta depender de usage_logs | por decidir | pendiente | |
 | T8 | S1, S3, S4 | U8 el respaldo cubre toda llamada al LLM (agente, SummarizationMiddleware y las de app/) | inline | hecho | e90b12a (RED: ImportError de invocar_con_respaldo; GREEN 22+1 tests) |
 | T9 | S3 | Revision independiente de T1-T6 (4 auditores en paralelo, fase 1 solo lectura) | delegado (regla de revision de CLAUDE.md) | hecho: fase 1 y correcciones (L7, L9) | d5a7341..2b1e71b |
+| T10 | S3, S5 | U9 arnes de evals: core/evals.py puro + scripts/evals del fork + test sin red | inline | en revision | fefe92b (RED: ModuleNotFoundError core.evals; GREEN 23/23; 558 lineas, una sola unidad) |
 
 ## Log
 
@@ -53,3 +55,5 @@ Objetivo: llevar a agent-core los aprendizajes genericos de BEA (fork de salon) 
   Bateria 22/22. core/agent.py es CRLF: editarlo con open() de Python lo pasa a LF y el diff se infla a todo el archivo (se corrigio con fixup).
 - L10: Pasada de recorte. Con 3 PRs, los tamaños serian ~1000 (codigo), ~580 (logging) y ~380 (docs). La regla de ~400 pide 6: A1 CI+fechas+session_id ~344, A2 LLM (5130aba+fixups+cortada) ~470, A3 respaldo en llamadas sueltas ~200, B1 logging ~320, B2 Sentry ~250, C docs ~380. Falta que Miguel elija.
 - L11: Correccion de premisa. Los 9 commits originales ya estaban en main por el PR #9 (merge del 2026-11-24); el main local del worktree estaba viejo. Lo que falta en main es T8 mas las correcciones (~351 lineas), asi que va en un solo PR. Las 5 ramas apiladas que se habian subido se borraron con el OK de Miguel. Se agrega `permissions: contents: read` al CI (hallazgo 8), que eran dos lineas.
+- L12 (2026-11-26, Miguel): "simon, vas con eso", sobre meter el arnes de evals como la siguiente unidad antes del agente nuevo. Va en la rama feat/evals-arnes, apilada sobre #10 porque usa construir_llms de core/llm.py.
+- L13: T10 en fefe92b. Agrega core/evals.py (puro), armar_agente en app/bootstrap.py (lo comparten build_runner y los evals), scripts/evals con runner y casos de ejemplo, y docs/evals.md. Se verifico con build_agent real y un modelo falso de LangChain: las llamadas y model_name se capturan bien. Revision independiente en curso.
