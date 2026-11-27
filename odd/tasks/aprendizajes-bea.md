@@ -23,7 +23,7 @@ Objetivo: llevar a agent-core los aprendizajes genericos de BEA (fork de salon) 
 | T7 | S1, S2, S3 | U6 monitoring: decidir si se acepta depender de usage_logs | por decidir | pendiente | |
 | T8 | S1, S3, S4 | U8 el respaldo cubre toda llamada al LLM (agente, SummarizationMiddleware y las de app/) | inline | hecho | e90b12a (RED: ImportError de invocar_con_respaldo; GREEN 22+1 tests) |
 | T9 | S3 | Revision independiente de T1-T6 (4 auditores en paralelo, fase 1 solo lectura) | delegado (regla de revision de CLAUDE.md) | hecho: fase 1 y correcciones (L7, L9) | d5a7341..2b1e71b |
-| T10 | S3, S5 | U9 arnes de evals: core/evals.py puro + scripts/evals del fork + test sin red | inline | hecho, sin subir | fefe92b + 388ea93 (RED/GREEN en cada uno; bateria 23/23) |
+| T10 | S3, S5 | U9 arnes de evals: core/evals.py puro + scripts/evals del fork + test sin red | inline | hecho, PR #11 (apilado sobre #10) | fefe92b + 388ea93 (RED/GREEN en cada uno; bateria 23/23) |
 
 ## Log
 
