@@ -165,6 +165,9 @@ Corren sin red y sin BD. Correlos antes de commitear cambios a `core/` o
 `app/business/`. Los scripts de `scripts/smoke/` son de humo manual: llaman al
 LLM y BD reales y cuestan tokens.
 
+Para medir al agente (no al codigo) hay evals de varios turnos contra el LLM
+real: `.venv/bin/python -m scripts.evals.correr`. Ver `docs/evals.md`.
+
 ## Crear un fork por cliente
 
 1. Clona este repo con el nombre del cliente y apunta `origin` a SU repo:
@@ -186,6 +189,8 @@ LLM y BD reales y cuestan tokens.
    webhook (la URL registrada en Kommo lleva `?secret=...`) y
    `KOMMO_ALLOWED_LEAD_IDS` con 2-3 leads para el piloto.
 4. Corre los dos scripts de BD y los tests.
+5. Escribe sus casos en `scripts/evals/casos.py` y corre la linea base de evals
+   (`scripts.evals.correr` y `--con-respaldo`) antes de abrir el piloto.
 
 ### Piloto seguro (canary)
 

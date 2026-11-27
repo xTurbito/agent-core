@@ -16,10 +16,11 @@ from core.settings import settings
 TOOLS = [consultar_disponibilidad]
 
 
-def build_runner() -> AgentRunner:
-    llm, llm_respaldo = construir_llms()
-    checkpointer = make_checkpointer(settings.memory_kind)
-    agent = build_agent(
+def armar_agente(checkpointer, llm=None, llm_respaldo=None):
+    """Produccion y evals arman el agente aqui, para que los evals midan lo mismo que corre."""
+    if llm is None:
+        llm, llm_respaldo = construir_llms()
+    return build_agent(
         llm,
         TOOLS,
         SYSTEM_PROMPT,
@@ -27,4 +28,7 @@ def build_runner() -> AgentRunner:
         context_provider=build_business_context,
         llm_respaldo=llm_respaldo,
     )
-    return AgentRunner(agent)
+
+
+def build_runner() -> AgentRunner:
+    return AgentRunner(armar_agente(make_checkpointer(settings.memory_kind)))
