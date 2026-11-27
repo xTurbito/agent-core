@@ -86,4 +86,29 @@ assert resumen == "Quiere una cita; falta el dia."
 assert "Cliente: quiero una cita" in respaldo.entradas[0]
 print("OK: el resumen para el asesor sale aunque el primario este caido")
 
+# --- 5. ni el primario ni el respaldo reintentan por su cuenta ---
+# Con los reintentos de la libreria, un respaldo colgado tardaba ~2 min por llamada
+# con el lock de la sesion tomado.
+
+import core.llm as llm_mod  # noqa: E402
+from core.settings import Settings  # noqa: E402
+
+original_settings = llm_mod.settings
+llm_mod.settings = Settings(
+    _env_file=None,
+    llm_provider="openrouter",
+    llm_model="primario",
+    openrouter_api_key="k1",
+    llm_fallback_provider="openai",
+    llm_fallback_model="respaldo",
+    openai_api_key="k2",
+)
+try:
+    primario_real, respaldo_real = llm_mod.construir_llms()
+finally:
+    llm_mod.settings = original_settings
+assert primario_real.max_retries == 0
+assert respaldo_real.max_retries == 0
+print("OK: con respaldo configurado, ninguno de los dos reintenta por su cuenta")
+
 print("\nTodas las pruebas de llamadas sueltas con respaldo pasaron.")

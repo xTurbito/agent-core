@@ -84,6 +84,8 @@ def construir_llms() -> tuple:
             settings.llm_fallback_model,
             api_key=key_respaldo,
             reasoning_effort=settings.llm_fallback_reasoning_effort,
+            # Sin esto, un respaldo colgado reintenta hasta ~2 min con el lock de la sesion tomado.
+            max_retries=0,
         )
     return llm, llm_respaldo
 
