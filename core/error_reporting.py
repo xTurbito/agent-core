@@ -118,6 +118,8 @@ def _init_sentry(dsn: str) -> None:
     sentry_sdk.init(
         dsn=dsn,
         send_default_pii=False,
+        # Las variables locales traen el texto de la conversacion.
+        include_local_variables=False,
         traces_sample_rate=0.0,
         before_send=_antes_de_enviar,
     )

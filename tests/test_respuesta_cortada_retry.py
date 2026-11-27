@@ -43,6 +43,18 @@ assert _respuesta_cortada(
 print("OK: solo cuenta como cortada una respuesta de texto con finish_reason=length")
 
 
+def respuesta_con_metadata(texto: str, metadata: dict):
+    return ModelResponse(result=[AIMessage(content=texto, response_metadata=metadata)])
+
+
+# Caso 1b: Gemini y Anthropic avisan el corte con otros valores
+assert _respuesta_cortada(respuesta_con_metadata("Media fr", {"finish_reason": "MAX_TOKENS"}))
+assert _respuesta_cortada(respuesta_con_metadata("Media fr", {"stop_reason": "max_tokens"}))
+assert not _respuesta_cortada(respuesta_con_metadata("Completa.", {"finish_reason": "STOP"}))
+assert not _respuesta_cortada(respuesta_con_metadata("Completa.", {"stop_reason": "end_turn"}))
+print("OK: el corte se detecta tambien en Gemini (MAX_TOKENS) y Anthropic (max_tokens)")
+
+
 # Caso 2: respuesta completa pasa directo, una sola llamada
 llamadas = {"n": 0}
 

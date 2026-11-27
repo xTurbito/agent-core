@@ -68,6 +68,7 @@ explica que hace y POR QUE existe cada parte.
 .venv/bin/python -m tests.test_chat_session_id         # session_id vacio -> 422
 .venv/bin/python -m tests.test_respuesta_cortada_retry # finish_reason "length" se reintenta
 .venv/bin/python -m tests.test_modelo_respaldo         # LLM_FALLBACK_* toma el turno si el primario falla
+.venv/bin/python -m tests.test_llm_suelto_respaldo    # llamadas sueltas (resumen) tambien usan el respaldo
 .venv/bin/python -m tests.test_logging_config
 .venv/bin/python -m tests.test_redaccion_secretos      # ?secret= no sale en logs ni Sentry
 

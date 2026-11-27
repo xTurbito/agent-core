@@ -77,12 +77,12 @@ cap = Capturador()
 logging.getLogger().addHandler(cap)
 try:
     logging.getLogger("httpx").info(
-        "HTTP Request: POST https://x.kommo.com/api/v4/leads/33455404"
+        "HTTP Request: POST https://x.kommo.com/api/v4/leads/12345678"
     )
     logging.getLogger("httpx").warning("timeout real")
 finally:
     logging.getLogger().removeHandler(cap)
-assert "33455404" not in cap.texto(), "la URL con lead_id se filtro en INFO"
+assert "12345678" not in cap.texto(), "la URL con lead_id se filtro en INFO"
 assert "timeout real" in cap.texto(), "httpx dejo de avisar errores reales"
 
 # --- El proveedor del LLM tampoco filtra. Ojo: la jerarquia de loggers va

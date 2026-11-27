@@ -5,6 +5,13 @@ Todos los proveedores exponen la MISMA interfaz de LangChain,
 asi el agente, webhook y tools nunca cambian al cambiar de LLM.
 """
 
+import logging
+
+from core.runner import extract_text
+from core.settings import settings
+
+logger = logging.getLogger(__name__)
+
 # Sin timeout, una llamada colgada al proveedor cuelga el lock por-sesion de
 # AgentRunner para SIEMPRE (visto en pruebas de carga: una sesion se quedo
 # atorada indefinidamente bajo 8 sesiones concurrentes). Cada proveedor de
@@ -55,3 +62,46 @@ def make_llm(
         )
 
     raise ValueError(f"Proveedor LLM no soportado: {provider}")
+
+
+def construir_llms() -> tuple:
+    """Devuelve (llm, llm_respaldo); el respaldo es None si no esta configurado."""
+    key_respaldo = settings.require_fallback_llm_api_key()
+    # Con respaldo, el primario falla a la primera en vez de reintentar hasta el timeout.
+    extras = {"max_retries": 0} if key_respaldo else {}
+    llm = make_llm(
+        settings.llm_provider,
+        settings.llm_model,
+        api_key=settings.require_llm_api_key(),
+        reasoning_effort=settings.llm_reasoning_effort,
+        **extras,
+    )
+    llm_respaldo = None
+    # require_fallback_llm_api_key ya valido proveedor y modelo; esto solo lo hace visible a mypy.
+    if key_respaldo and settings.llm_fallback_provider and settings.llm_fallback_model:
+        llm_respaldo = make_llm(
+            settings.llm_fallback_provider,
+            settings.llm_fallback_model,
+            api_key=key_respaldo,
+            reasoning_effort=settings.llm_fallback_reasoning_effort,
+            # Sin esto, un respaldo colgado reintenta hasta ~2 min con el lock de la sesion tomado.
+            max_retries=0,
+        )
+    return llm, llm_respaldo
+
+
+def invocar_con_respaldo(entrada, llm, respaldo=None):
+    """Llamada suelta al LLM con la misma red que el agente: si el primario falla, el respaldo."""
+    try:
+        respuesta = llm.invoke(entrada)
+    except Exception as exc:
+        if respaldo is None:
+            raise
+        logger.warning(
+            "LLM primario fallo en llamada suelta (%s); se usa el respaldo", type(exc).__name__
+        )
+        return respaldo.invoke(entrada)
+    if respaldo is not None and not extract_text(respuesta.content).strip():
+        logger.warning("LLM primario regreso vacio en llamada suelta; se usa el respaldo")
+        return respaldo.invoke(entrada)
+    return respuesta

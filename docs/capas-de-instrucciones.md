@@ -1,7 +1,7 @@
 # Capas de instrucciones: quien manda en cada regla
 
 Lee esto antes de cambiar una regla de comportamiento del agente en cualquier
-fork. Viene de BEA (fork de salon, noviembre de 2026): casi todos los casos de
+fork. Viene de un fork en produccion (noviembre de 2026): casi todos los casos de
 "el agente se atora" o "se marea" vinieron de dos capas diciendole al modelo
 cosas distintas.
 
@@ -14,7 +14,7 @@ Al modelo le llegan ordenes desde varios lugares y las lee todas juntas:
 | System prompt | `app/prompts/` (+ lo que inyecta `ContextInjectionMiddleware` por turno) | El embudo del negocio (cuando ofrecer, cuando cobrar, cuando escalar) y el tono |
 | Docstrings de las tools | `app/tools/*.py` | Que hace la tool y que significa cada campo o status. Nada de reglas de venta |
 | Datos del catalogo | El sistema externo del fork (Agenda, CRM, ERP) cuando entrega instrucciones por producto o servicio | Solo lo propio de ese producto: preparacion, exclusiones, horarios fijos, que preguntar para elegir variante |
-| Guards | middleware en `app/business/` y `core/guards.py` | Lo que tiene consecuencia real (precio, cita, pago) y no puede depender de que el modelo obedezca |
+| Guards | middleware del fork (lo pasa en `extra_middleware`) y `core/guards.py` | Lo que tiene consecuencia real (precio, cita, pago) y no puede depender de que el modelo obedezca |
 
 ## Reglas
 
@@ -56,7 +56,7 @@ Al modelo le llegan ordenes desde varios lugares y las lee todas juntas:
 ## Costo de probar con el LLM real
 
 Cada llamada manda el prompt completo mas historial y resultados de tools. En
-BEA eran 20 a 25 mil tokens por llamada (~60% ya en cache del proveedor). Corre
+el fork de referencia eran 20 a 25 mil tokens por llamada (~60% ya en cache del proveedor). Corre
 solo los casos que toca el cambio.
 
 Para la voz del agente (ejemplos en vez de adjetivos, guards que no pegan texto

@@ -249,7 +249,8 @@ def _parse_numeric_date(text: str, reference: date) -> tuple[str, date] | None:
 def _parse_month_name_date(text: str, reference: date) -> tuple[str, date] | None:
     month_names = "|".join(MONTHS)
     match = re.search(
-        rf"\b(\d{{1,2}})\s+de\s+({month_names})(?:\s+del?\s+(\d{{2,4}}))?\b",
+        # "del" solo con 4 digitos: "del 10 al 12" es un rango de dias, no el año 2010.
+        rf"\b(\d{{1,2}})\s+de\s+({month_names})(?:\s+(?:de\s+(\d{{2,4}})|del\s+(\d{{4}})))?\b",
         text,
     )
     if not match:
@@ -257,7 +258,7 @@ def _parse_month_name_date(text: str, reference: date) -> tuple[str, date] | Non
 
     day = int(match.group(1))
     month = MONTHS[match.group(2)]
-    raw_year = match.group(3)
+    raw_year = match.group(3) or match.group(4)
     year = _normalize_year(raw_year) if raw_year else reference.year
 
     try:
