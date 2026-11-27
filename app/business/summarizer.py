@@ -2,9 +2,8 @@
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from core.llm import make_llm
+from core.llm import construir_llms, invocar_con_respaldo
 from core.runner import AgentRunner, extract_text
-from core.settings import settings
 
 SUMMARY_PROMPT = (
     "Resume la siguiente conversacion entre un cliente y un asistente de negocio. "
@@ -25,8 +24,8 @@ def summarize_conversation(runner: AgentRunner, session_id: str) -> str | None:
     if not transcript:
         return None
 
-    llm = make_llm(settings.llm_provider, settings.llm_model, api_key=settings.active_llm_api_key)
-    response = llm.invoke(SUMMARY_PROMPT.format(transcript=transcript))
+    llm, respaldo = construir_llms()
+    response = invocar_con_respaldo(SUMMARY_PROMPT.format(transcript=transcript), llm, respaldo)
     return extract_text(response.content)
 
 
