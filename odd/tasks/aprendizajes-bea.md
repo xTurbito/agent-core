@@ -23,7 +23,7 @@ Objetivo: llevar a agent-core los aprendizajes genericos de BEA (fork de salon) 
 | T7 | S1, S2, S3 | U6 monitoring: decidir si se acepta depender de usage_logs | por decidir | pendiente | |
 | T8 | S1, S3, S4 | U8 el respaldo cubre toda llamada al LLM (agente, SummarizationMiddleware y las de app/) | inline | hecho | e90b12a (RED: ImportError de invocar_con_respaldo; GREEN 22+1 tests) |
 | T9 | S3 | Revision independiente de T1-T6 (4 auditores en paralelo, fase 1 solo lectura) | delegado (regla de revision de CLAUDE.md) | hecho: fase 1 y correcciones (L7, L9) | d5a7341..2b1e71b |
-| T10 | S3, S5 | U9 arnes de evals: core/evals.py puro + scripts/evals del fork + test sin red | inline | en revision | fefe92b (RED: ModuleNotFoundError core.evals; GREEN 23/23; 558 lineas, una sola unidad) |
+| T10 | S3, S5 | U9 arnes de evals: core/evals.py puro + scripts/evals del fork + test sin red | inline | hecho, sin subir | fefe92b + 388ea93 (RED/GREEN en cada uno; bateria 23/23) |
 
 ## Log
 
@@ -57,3 +57,4 @@ Objetivo: llevar a agent-core los aprendizajes genericos de BEA (fork de salon) 
 - L11: Correccion de premisa. Los 9 commits originales ya estaban en main por el PR #9 (merge del 2026-11-24); el main local del worktree estaba viejo. Lo que falta en main es T8 mas las correcciones (~351 lineas), asi que va en un solo PR. Las 5 ramas apiladas que se habian subido se borraron con el OK de Miguel. Se agrega `permissions: contents: read` al CI (hallazgo 8), que eran dos lineas.
 - L12 (2026-11-26, Miguel): "simon, vas con eso", sobre meter el arnes de evals como la siguiente unidad antes del agente nuevo. Va en la rama feat/evals-arnes, apilada sobre #10 porque usa construir_llms de core/llm.py.
 - L13: T10 en fefe92b. Agrega core/evals.py (puro), armar_agente en app/bootstrap.py (lo comparten build_runner y los evals), scripts/evals con runner y casos de ejemplo, y docs/evals.md. Se verifico con build_agent real y un modelo falso de LangChain: las llamadas y model_name se capturan bien. Revision independiente en curso.
+- L14: Revision independiente de fefe92b: sin bloqueantes. Correcciones en 388ea93, cada una con su test: contesto sale del mensaje final, un error del modelo queda como violacion y el caso se corta, conteo de emojis (bandera, ZWJ y keycap valen uno; °©™ no cuentan), 'Buenas noticias' no es saludo, el ? de una URL no es pregunta, corridas mayor que 0. Se agrego el test del primario caido con el respaldo contestando, sobre build_agent real. Falta el OK de Miguel para subir la rama y abrir el PR apilado sobre #10.
